@@ -1,0 +1,15 @@
+= index/ =
+Currently you can get the maps which are indexed in the index/*index.csv files
+from the url (replacing $cd_title and $image_id),
+
+http://parishmaps.lands.nsw.gov.au/mrsid/image_sid.pl?client=pmap&image=$cd_title/$image_id.sid
+
+This will give you the MrSID file. I used the MrSID extention to GDAL to convert
+them into JPG.
+
+= scraper/ =
+The code in scraper was written to generate the index files, and hence download
+the MrSID files. I only wrote it to really be run once. If you want to use my
+code to scrape the MrSID files, make sure you step through it and think about
+what each step will do, don't just run ./scraper.sh as it wasn't designed to be
+run like that (and won't work as the cd ../'s have errors).

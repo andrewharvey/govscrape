@@ -1,0 +1,89 @@
+#!/bin/sh
+
+#You SHOULD manually run through this script. Since it was a one off
+#script, it wasn't designed to be run just as ./scraper.sh
+
+#Also I'm sure I've either put in one too many ../'s or left one out, so beware!
+
+#make the intermediate directory for storing tempory files
+mkdir inter
+mkdir sids
+cd inter
+
+#### PASTORAL ####
+#get the HTML page indexing Pastoral Maps and save as pastoral.query.html
+wget -O pastoral-query.html 'http://parishmaps.lands.nsw.gov.au/search/pmap_websearch.query?mname=&mtype=PL'
+
+#extract the links
+grep -o 'href="[^"]*"' < pastoral-query.html | sed 's/^href="/http:\/\/parishmaps.lands.nsw.gov.au\/search\//' | sed 's/"$//' > pastoral-pages.txt
+
+#get files in pastoral-pages.txt into a folder named pastormaps_htmls
+mkdir pastormaps_htmls
+cd pastormaps_htmls
+wget -i ../pastoral-pages.txt
+
+#make an index of these files (Image ID is the .sid filename)
+../../make_index_PL.pl *.html > ../../index/pastor_index.csv
+
+#get the URLs of the MrSID files
+cat *.html | grep -o 'image=[^&]*&' | sed 's/&$//' | sed 's/^image=//' | sort | uniq | sed 's/^/http:\/\/parishmaps.lands.nsw.gov.au\/mrsid\/image_sid.pl?client=pmap\&image=/' > ../sidurls-pastoral.txt
+
+#get files in sid_pastoral_files.txt
+cd ../../sids
+wget -i ../inter/sidurls-pastoral.txt
+cd ../
+
+#### PARISH ####
+#searching for "" like above seemed to time out for me, so I just used the pastoral_files.txt and replaced mtype=PL with mtype=PH
+##get the HTML page indexing parish maps and save as parish.query.html
+##http://parishmaps.lands.nsw.gov.au/search/pmap_websearch.query?mname=&mtype=PH
+cd inter
+sed 's/mtype\=PL/mtype\=PH/' < pastoral-pages.txt > parish-pages.txt
+
+#get all html files from parish-pages.txt into parishmaps_htmls
+mkdir parishmaps_htmls
+cd parishmaps_htmls
+wget -i ../parish-pages.txt
+
+#make an index of these files (Image ID is the .sid filename)
+../../make_index_PH.pl *.html > ../../index/parish_index.csv
+
+cd inter
+
+#now generate the .sid file URLs
+cut -d ',' -f8-9 ../index/parish_index.csv | tail -n +2 | sed 's/,/\//' | sed 's/$/.sid/' | sed 's/^/http:\/\/parishmaps.lands.nsw.gov.au\/mrsid\/image_sid.pl?client=pmap\&image=/' > sidurls-parish.txt
+
+#get the sid files
+cd ../sids
+wget -i ../sidurls-parish.txt
+
+#### Municipal ####
+sed 's/mtype\=PH/mtype\=ML/' < parish-pages.txt > municipal-pages.txt
+
+mkdir municipal_htmls
+cd municipal_htmls
+#get those files
+wget -i ../municipal-pages.txt
+
+#make an index of these files (Image ID is the .sid filename)
+../make_index_ML.pl *.html > ../municipal_index.csv
+
+cd ..
+
+#now generate the .sid file URLs
+cut -d ',' -f8-9 municipal-index.csv | tail -n +2 | sed 's/,/\//' | sed 's/$/.sid/' | sed 's/^/http:\/\/parishmaps.lands.nsw.gov.au\/mrsid\/image_sid.pl?client=pmap\&image=/' > sidurls-municipal.txt
+
+#get the sid files
+cd ../sids
+wget -i ../sidurls-municipal.txt
+
+### NOTES ###
+# once I had the sid files, I cleaned up the filenames and moved them into
+#directories. then I could run this to make jpg's.
+for i in */*.sid ; do
+  if test -e "$i.jpg" ; then
+    echo "$i.jpg exisits"
+  else
+    gdal_translate -of JPEG "$i" "$i.jpg";
+  fi
+done
