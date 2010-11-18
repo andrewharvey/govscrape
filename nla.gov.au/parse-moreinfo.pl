@@ -185,7 +185,11 @@ sub printinfohash {
                 $public_domain = $end_date + 50 if (defined $end_date);
             }else{
                 if (defined $creator_died) {
-                    $public_domain = $creator_died + 70;
+                    if ($creator_died < 1955) {
+                        $public_domain = $creator_died + 50;
+                    }else{
+                        $public_domain = $creator_died + 70;
+                    }
                 }elsif (defined $creator_born) {
                     $public_domain = $creator_born + 110 + 70; #i think it is safe to assume this
                 }
