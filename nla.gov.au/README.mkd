@@ -1,0 +1,59 @@
+# README
+
+If you are just looking for the end results try [here](http://andrew.liway.net/nla/).
+
+## Scraping
+Ultimately I wanted two things from the nla.gov.au image database. Links to the raw sid files, and metadata for these files in a machine readable format. I couldn't find these, hence the purpose of this work.
+
+### Finding Links
+
+The first part of the problem is finding what files are avaliable. I could not find a index file listing everything so I see two approaches here. Scrape links from the catalog search, or make a lot of requests and hope you get a reply.
+
+#### Using the Catalogue Search
+
+We can pull the records out of the catalogue by grabbing all search results for nla.map*
+    curl 'http://catalogue.nla.gov.au/Search/Home?lookfor=pi:nla.map*&type=all&sort=sort_title_asc&view=rss&page=[1-200]' -o search-pi:nla.map-#1.xml
+
+Then we can grab the links from these files with,
+    xml_grep --text_only link search-pi\:nla.map-*.xml | sort | uniq
+
+We can then grab all those Record pages and search for `http://nla.gov.au/nla.map-*`
+
+#### Using mass queries
+These are the ones I know of,
+    http://nla.gov.au/nla.map-f[0-1000]
+    http://nla.gov.au/nla.map-raa[0-100]
+    http://nla.gov.au/nla.map-rm[0-5000]
+    http://nla.gov.au/nla.map-nk[0-9000]
+
+The following assumes we have a list of `http://nla.gov.au/nla.map-` URLs.
+
+### Getting the raw SID files
+
+Using the `nla.map-*` part of the URLs we grab, `http://www.nla.gov.au/apps/cdview?pi=nla.map-*`
+
+This is not very robust, but I used this to find the URLs of the SID files from these pages
+    cat * | grep -o 'http://www.nla.gov.au/apps/cdview?pi=nla.map-[^"]*"' | sed 's/"$//' | \
+    grep -v '\-e$' | \ #we want the -sd link not the -e (examine)
+    grep -v '\-t$' | \ #we want the -sd link not the -t (tiles)
+    sed 's/\-v$/\-sd/' | \ #ones that have multiple parts are another recursive link to a similar page, lets just add the -sd that we want
+    sed 's/\-([0-9]*)$/\-$1\-sd/' | \ #if it doesn't end in -sd, it probably should
+    sort | uniq > ../sdpages
+
+Next we grab all the URLs in `sdpages`. In each of them we should find a link. We want the bit after the `img=` in `http://www.nla.gov.au/lizardtech/iserv/getimage?cat=NLAObjects&img=/nla.map/rm/044/29/nla.map-rm04429-s001-sd.sid`
+
+We can feed the `sdpages` file into `gensids.pl` rather than getting them all, and parsing them to find the actual SID link. (there are some trick cases though which are spit out to STDERR)
+    ./gensids.pl < sdpages > sidurls
+
+Then we can grab the sid files as listed in sidurls.
+
+## Extracting Metadata
+The parse-moreinfo.pl script takes as an argument one or more HTML files [like this one](http://www.nla.gov.au/cdview/nla.map-rm1078&mode=moreinfo).
+
+It will create a tab seperated values file for each HTML file, as well as a single global database file containing the results of all arguments.
+
+    ./parse-moreinfo.pl moreinfo/html/nla.map-*.html
+
+# Comments
+
+I know, there are lots of bugs. But its good enough for my purposes, within my time constraints.
